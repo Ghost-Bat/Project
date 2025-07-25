@@ -80,7 +80,7 @@ export const Drawer = ({ isDrawerOpen, onDrawerClose }: DrawerProps) => {
       </Box>
       <Divider />
       <List role="navigation" aria-label="Navigation menu">
-        <Link to={routes.ROOT}>
+        <Link to={routes.ROOT} onClick={onDrawerClose}>
           <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
@@ -90,7 +90,7 @@ export const Drawer = ({ isDrawerOpen, onDrawerClose }: DrawerProps) => {
             </ListItemButton>
           </ListItem>
         </Link>
-        <Link to={routes.SETTINGS}>
+        <Link to={routes.SETTINGS} onClick={onDrawerClose}>
           <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
@@ -100,7 +100,7 @@ export const Drawer = ({ isDrawerOpen, onDrawerClose }: DrawerProps) => {
             </ListItemButton>
           </ListItem>
         </Link>
-        <Link to={routes.ABOUT}>
+        <Link to={routes.ABOUT} onClick={onDrawerClose}>
           <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
@@ -110,7 +110,7 @@ export const Drawer = ({ isDrawerOpen, onDrawerClose }: DrawerProps) => {
             </ListItemButton>
           </ListItem>
         </Link>
-        <Link to={routes.DISCLAIMER}>
+        <Link to={routes.DISCLAIMER} onClick={onDrawerClose}>
           <ListItem disablePadding>
             <ListItemButton>
               <ListItemIcon>
