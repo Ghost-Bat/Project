@@ -1,4 +1,4 @@
-import { useContext } from 'react'
+import { useContext, useMemo } from 'react' // Değişiklik 1: useMemo eklendi
 import { useWindowSize } from '@react-hook/window-size'
 import Zoom from '@mui/material/Zoom'
 import Box from '@mui/material/Box'
@@ -57,6 +57,18 @@ export function Room({
     isEnhancedConnectivityEnabled
   )
 
+  // Değişiklik 2: useRoom'a gönderilen config nesnesi useMemo ile sarmalandı
+  const roomJoinConfig = useMemo(
+    () => ({
+      appId,
+      relayUrls: trackerUrls,
+      rtcConfig,
+      password,
+      relayRedundancy: 4,
+    }),
+    [appId, rtcConfig, password]
+  )
+
   const {
     isDirectMessageRoom,
     handleInlineMediaUpload,
@@ -68,13 +80,7 @@ export function Room({
     sendMessage,
     showVideoDisplay,
   } = useRoom(
-    {
-      appId,
-      relayUrls: trackerUrls,
-      rtcConfig,
-      password,
-      relayRedundancy: 4,
-    },
+    roomJoinConfig, // Değişiklik 3: Sabitlenmiş config nesnesi kullanıldı
     {
       roomId,
       userId,
