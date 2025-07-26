@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import useTheme from '@mui/material/styles/useTheme';
 import FileReaderInput, { Result } from 'react-file-reader-input';
-import { useAccount, useContractRead, useNetwork, useSwitchNetwork } from 'wagmi';
+import { useAccount, useContractRead, useSwitchChain } from 'wagmi'; // GÜNCELLEME: useSwitchNetwork -> useSwitchChain olarak değiştirildi
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { ethers } from 'ethers';
 
@@ -21,6 +21,7 @@ import { notification } from 'services/Notification';
 import { settings } from 'services/Settings';
 import { encryption } from 'services/Encryption';
 import { isErrorWithMessage } from 'lib/type-guards';
+import { serialization } from 'services/Serialization'; // EKSİK IMPORT EKLENDİ
 
 // PCHAT Token Bilgileri
 const PCHAT_CONTRACT_ADDRESS = '0x1cddc4286bA71A2ed46b1aE2e7145323eC6f905A';
@@ -40,9 +41,8 @@ export const Settings = ({ userId }: SettingsProps) => {
   const { getPersistedStorage } = useContext(StorageContext);
 
   // Cüzdan ve Ağ Hook'ları
-  const { address, isConnected } = useAccount();
-  const { chain } = useNetwork();
-  const { switchNetwork } = useSwitchNetwork();
+  const { address, isConnected, chain } = useAccount();
+  const { switchChain } = useSwitchChain(); // GÜNCELLEME: useSwitchNetwork -> useSwitchChain olarak değiştirildi
   
   // Token Bakiye Kontrolü
   const { data: balance, isLoading: isBalanceLoading } = useContractRead({
@@ -50,7 +50,7 @@ export const Settings = ({ userId }: SettingsProps) => {
     abi: PCHAT_ABI,
     functionName: 'balanceOf',
     args: [address as `0x${string}`],
-    enabled: isConnected && chain?.id === 137, // Sadece bağlıyken ve Polygon ağındayken çalış
+    enabled: isConnected && chain?.id === 137,
     watch: true,
   });
 
@@ -68,6 +68,8 @@ export const Settings = ({ userId }: SettingsProps) => {
     showActiveTypingStatus,
     isEnhancedConnectivityEnabled,
   } = getUserSettings();
+
+  const persistedStorage = getPersistedStorage();
 
   useEffect(() => {
     setTitle('Settings');
@@ -94,8 +96,9 @@ export const Settings = ({ userId }: SettingsProps) => {
     if (operationType === 'export') {
       try {
         const userSettings = getUserSettings();
+        const serializedProfile = await serialization.serializeUserSettings(userSettings);
         const dataToExport = {
-          profile: await settings.exportSettings(userSettings), // exportSettings'in JSON objesi döndürdüğünü varsayıyoruz
+          profile: serializedProfile,
           history: messageLog,
         };
         const encryptedData = await encryption.encryptWithPassword(JSON.stringify(dataToExport), password);
@@ -104,7 +107,9 @@ export const Settings = ({ userId }: SettingsProps) => {
         link.href = URL.createObjectURL(blob);
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         link.download = `ghostbat-backup-${timestamp}.json.enc`;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         showAlert('Data successfully encrypted and exported.', { severity: 'success' });
       } catch (e) {
         if (isErrorWithMessage(e)) showAlert(e.message, { severity: 'error' });
@@ -117,14 +122,21 @@ export const Settings = ({ userId }: SettingsProps) => {
                 const decryptedString = await encryption.decryptWithPassword(encryptedData, password);
                 const importedData = JSON.parse(decryptedString);
 
-                // TODO: Gelen veriyi daha detaylı doğrula (zod, vs.)
                 if (importedData.profile && importedData.history) {
-                    await updateUserSettings(importedData.profile);
-                    // Ana sohbet geçmişini güncelle (DM'ler için de mantık eklenebilir)
-                    setMessageLog(importedData.history.groupMessageLog, null);
-                    showAlert('Data successfully imported and restored.', { severity: 'success' });
-                    // Sayfayı yenilemek en temizi olabilir
-                    setTimeout(() => window.location.reload(), 1500);
+                    const deserializedSettings = await serialization.deserializeUserSettings(importedData.profile);
+                    await updateUserSettings(deserializedSettings);
+                    
+                    if (importedData.history.groupMessageLog) {
+                      setMessageLog(importedData.history.groupMessageLog, null);
+                    }
+                    if (importedData.history.directMessageLog) {
+                       for (const peerId in importedData.history.directMessageLog) {
+                           setMessageLog(importedData.history.directMessageLog[peerId], peerId);
+                       }
+                    }
+                    
+                    showAlert('Data successfully imported and restored. The page will now reload.', { severity: 'success' });
+                    setTimeout(() => window.location.reload(), 2000);
                 } else {
                     throw new Error("Invalid backup file format.");
                 }
@@ -135,7 +147,6 @@ export const Settings = ({ userId }: SettingsProps) => {
         fileReader.readAsText(fileToImport);
     }
     
-    // İşlem sonrası state'i temizle
     setIsPasswordDialogOpen(false);
     setPassword('');
     setOperationType(null);
@@ -156,13 +167,13 @@ export const Settings = ({ userId }: SettingsProps) => {
       return (
         <Paper elevation={3} sx={{ p: 2, mb: 2, textAlign: 'center' }}>
           <Typography sx={{ mb: 2 }}>Please switch to the Polygon network to proceed.</Typography>
-          <Button variant="contained" onClick={() => switchNetwork?.(137)}>Switch to Polygon</Button>
+          <Button variant="contained" onClick={() => switchChain?.({ chainId: 137 })}>Switch to Polygon</Button>
         </Paper>
       );
     }
 
     if (isBalanceLoading) {
-      return <Typography>Checking your PCHAT balance...</Typography>;
+      return <Typography sx={{textAlign: 'center', my: 2}}>Checking your PCHAT balance...</Typography>;
     }
 
     if (!hasSufficientBalance) {
@@ -179,7 +190,6 @@ export const Settings = ({ userId }: SettingsProps) => {
       )
     }
 
-    // Bakiye yeterliyse butonları göster
     return (
       <>
         <Typography variant="h5" sx={{ mb: 1.5 }}>Export Profile & Chat History</Typography>
@@ -199,35 +209,55 @@ export const Settings = ({ userId }: SettingsProps) => {
     );
   };
 
+  // Diğer ayar fonksiyonları (değişiklik yok)
+  const handlePlaySoundOnNewMessageChange = (event: ChangeEvent, value: boolean) => updateUserSettings({ playSoundOnNewMessage: value });
+  const handleShowNotificationOnNewMessageChange = (event: ChangeEvent, value: boolean) => updateUserSettings({ showNotificationOnNewMessage: value });
+  const handleShowActiveTypingStatusChange = (event: ChangeEvent, value: boolean) => updateUserSettings({ showActiveTypingStatus: value });
+  const handleIsEnhancedConnectivityEnabledChange = (event: ChangeEvent, value: boolean) => isEnhancedConnectivityAvailable && updateUserSettings({ isEnhancedConnectivityEnabled: value });
+  const handleDeleteSettingsClick = () => setIsDeleteConfirmOpen(true);
+  const handleDeleteSettingsCancel = () => setIsDeleteConfirmOpen(false);
+  const handleDeleteSettingsConfirm = async () => { await getPersistedStorage().clear(); window.location.reload(); };
+
   return (
     <Box sx={{ p: 2, mx: 'auto', maxWidth: theme.breakpoints.values.md }}>
-      {/* Mevcut Chat ve Networking Bölümleri... */}
-      <Typography variant="h3" sx={{ mb: 2 }}>Chat</Typography>
-      {/* ... (buradaki mevcut Paper bileşenleri aynı kalacak) ... */}
+      <Typography variant="h4" sx={{ mb: 2 }}>Chat</Typography>
+      <Paper elevation={3} sx={{ p: 2, mb: 2 }}>
+        <Typography>When a message is received in the background:</Typography>
+        <FormGroup>
+          <FormControlLabel control={<Switch checked={playSoundOnNewMessage} onChange={handlePlaySoundOnNewMessageChange}/>} label="Play a sound" />
+          <FormControlLabel control={<Switch checked={notification.permission === 'granted' && showNotificationOnNewMessage} onChange={handleShowNotificationOnNewMessageChange} disabled={notification.permission !== 'granted'}/>} label="Show a notification" />
+        </FormGroup>
+        <Typography mt={2}>Select a sound that plays when you receive a message:</Typography>
+        <SoundSelector disabled={!playSoundOnNewMessage} />
+      </Paper>
+      <Paper elevation={3} sx={{ p: 2, mb: 2 }}>
+        <FormGroup>
+          <FormControlLabel control={<Switch checked={showActiveTypingStatus} onChange={handleShowActiveTypingStatusChange}/>} label="Show active typing indicators" />
+        </FormGroup>
+        <Typography variant="body2">Disabling this will also hide your active typing status from others.</Typography>
+      </Paper>
       
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="h3" sx={{ mb: 2 }}>Data Management</Typography>
+      {isEnhancedConnectivityAvailable && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h4" sx={{ mb: 2 }}>Networking</Typography>
+          <EnhancedConnectivityControl isEnabled={isEnhancedConnectivityEnabled} onChange={handleIsEnhancedConnectivityEnabledChange} variant="body2" />
+        </>
+      )}
+
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h4" sx={{ mb: 2 }}>Data Management</Typography>
       {renderDataSection()}
 
-      <Dialog open={isPasswordDialogOpen} onClose={() => setIsPasswordDialogOpen(false)}>
+      <Dialog open={isPasswordDialogOpen} onClose={() => setIsPasswordDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>{operationType === 'export' ? 'Set Backup Password' : 'Enter Backup Password'}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
+          <DialogContentText sx={{mb: 2}}>
             {operationType === 'export'
               ? 'Please set a strong password to encrypt your backup file. You will need this password to restore your data.'
               : 'Please enter the password you used to encrypt this backup file.'}
           </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Password"
-            type="password"
-            fullWidth
-            variant="standard"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handlePasswordConfirm()}
-          />
+          <TextField autoFocus margin="dense" label="Password" type="password" fullWidth variant="standard" value={password} onChange={(e) => setPassword(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handlePasswordConfirm()} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIsPasswordDialogOpen(false)}>Cancel</Button>
@@ -235,9 +265,17 @@ export const Settings = ({ userId }: SettingsProps) => {
         </DialogActions>
       </Dialog>
       
-      {/* Mevcut Delete Data Bölümü... */}
-      <Divider sx={{ my: 2 }} />
-      {/* ... (Delete all profile data kısmı aynı kalacak) ... */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="h4" sx={{ mb: 2 }}>Delete All Data</Typography>
+      <Typography sx={{ mb: 2 }}>
+        <strong>Be careful with this.</strong> This will cause your user name to change from{' '}
+        <strong><PeerNameDisplay>{userId}</PeerNameDisplay></strong> to a new, randomly-assigned name. It will also reset all of your saved application preferences.
+      </Typography>
+      <Button variant="outlined" color="error" onClick={handleDeleteSettingsClick} sx={{ mb: 2 }}>Delete all data and restart</Button>
+      <ConfirmDialog isOpen={isDeleteConfirmOpen} onCancel={handleDeleteSettingsCancel} onConfirm={handleDeleteSettingsConfirm} />
+      <Typography variant="caption" color="text.secondary">
+        GhostBat only stores user preferences and never message content of any kind. This preference data is only stored locally on your device and not a server.
+      </Typography>
     </Box>
   );
 };

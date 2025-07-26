@@ -10,30 +10,24 @@ import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import Init from './Init'
 import reportWebVitals from './reportWebVitals'
 
+// --- WEB3 ve REACT QUERY IMPORT'LARI ---
 import '@rainbow-me/rainbowkit/styles.css';
-import { getDefaultWallets, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { configureChains, createConfig, WagmiConfig } from 'wagmi';
+import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiConfig } from 'wagmi';
 import { polygon } from 'wagmi/chains';
-import { publicProvider } from 'wagmi/providers/public';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // YENİ IMPORT
 
-const { chains, publicClient } = configureChains(
-  [polygon],
-  [publicProvider()]
-);
+// --- WEB3 ve REACT QUERY KONFİGÜRASYONU ---
+const queryClient = new QueryClient(); // YENİ: QueryClient'ı oluştur
 
-const { connectors } = getDefaultWallets({
+const config = getDefaultConfig({
   appName: 'GhostBat',
-  projectId: 'YOUR_PROJECT_ID',
-  chains
+  projectId: 'YOUR_PROJECT_ID', // WalletConnect Cloud'dan aldığınız ID'yi buraya yapıştırın
+  chains: [polygon],
+  ssr: false, 
 });
 
-const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors,
-  publicClient
-});
-
-
+// --- ÖNBELLEKLEME İÇİN GEÇİCİ RENDER'LAR ---
 ;<ThemeProvider theme={createTheme()} />
 ReactDOM.createRoot(document.createElement('div')).render(
   <SyntaxHighlighter language="" children={''} />
@@ -41,10 +35,13 @@ ReactDOM.createRoot(document.createElement('div')).render(
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
+// Uygulamayı QueryClientProvider ile de sarmalayın
 root.render(
-  <WagmiConfig config={wagmiConfig}>
-    <RainbowKitProvider chains={chains}>
-      <Init />
+  <WagmiConfig config={config}>
+    <RainbowKitProvider>
+      <QueryClientProvider client={queryClient}>
+        <Init />
+      </QueryClientProvider>
     </RainbowKitProvider>
   </WagmiConfig>
 )
