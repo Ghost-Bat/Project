@@ -1,5 +1,5 @@
 import { useDebounce } from '@react-hook/debounce'
-import { useContext, useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react' // useRef eklendi
 import { BaseRoomConfig } from 'trystero'
 import { RelayConfig } from 'trystero/torrent'
 import { v4 as uuid } from 'uuid'
@@ -35,7 +35,11 @@ import { AllowedKeyType, encryption } from 'services/Encryption'
 import { FileTransferService } from 'services/FileTransfer'
 import { notification } from 'services/Notification'
 
-import { messageTranscriptSizeLimit } from 'config/messaging'
+import {
+  messageTranscriptSizeLimit,
+  RATE_LIMIT_COUNT,
+  RATE_LIMIT_WINDOW_MS,
+} from 'config/messaging'
 
 import { usePeerVerification } from './usePeerVerification'
 
@@ -100,6 +104,8 @@ export function useRoom(
   )
 
   peerRoomRef.current = peerRoom
+  
+  const messageTimestamps = useRef<number[]>([]);
 
   const settingsContext = useContext(SettingsContext)
   const { showActiveTypingStatus } = settingsContext.getUserSettings()
@@ -425,6 +431,23 @@ export function useRoom(
   })
 
   const sendMessage = async (message: string) => {
+    // YENİ: Hız Sınırlaması Kontrolü
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    
+    // Zaman penceresi dışındaki eski zaman damgalarını temizle
+    messageTimestamps.current = messageTimestamps.current.filter(
+      (timestamp) => timestamp > windowStart
+    );
+
+    // Limiti kontrol et
+    if (messageTimestamps.current.length >= RATE_LIMIT_COUNT) {
+      showAlert('You are sending messages too quickly. Please wait a moment.', {
+        severity: 'warning',
+      });
+      return;
+    }
+
     if (isMessageSending) return
 
     const unsentMessage: UnsentMessage = {
@@ -433,6 +456,8 @@ export function useRoom(
       timeSent: timeService.now(),
       id: getUuid(),
     }
+
+    messageTimestamps.current.push(now);
 
     setIsTyping(false)
     setIsMessageSending(true)
@@ -546,8 +571,6 @@ export function useRoom(
       setIsTyping(true)
     }
 
-    // This queues up the expiration of the typing state. It is effectively
-    // cancelled once this message change handler is called again.
     setIsTypingDebounced(false)
   }
 
@@ -581,7 +604,7 @@ export function useRoom(
 
   return {
     isDirectMessageRoom,
-    isPrivate, // isPrivate'ı buradan dışarı aktarıyoruz
+    isPrivate,
     handleInlineMediaUpload,
     handleMessageChange,
     isMessageSending,

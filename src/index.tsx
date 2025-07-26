@@ -11,28 +11,16 @@ import Init from './Init'
 import reportWebVitals from './reportWebVitals'
 
 import '@rainbow-me/rainbowkit/styles.css';
-import { getDefaultWallets, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { configureChains, createConfig, WagmiConfig } from 'wagmi';
+import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiConfig } from 'wagmi';
 import { polygon } from 'wagmi/chains';
-import { publicProvider } from 'wagmi/providers/public';
 
-const { chains, publicClient } = configureChains(
-  [polygon],
-  [publicProvider()]
-);
-
-const { connectors } = getDefaultWallets({
+const config = getDefaultConfig({
   appName: 'GhostBat',
   projectId: 'YOUR_PROJECT_ID',
-  chains
+  chains: [polygon],
+  ssr: false,
 });
-
-const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors,
-  publicClient
-});
-
 
 ;<ThemeProvider theme={createTheme()} />
 ReactDOM.createRoot(document.createElement('div')).render(
@@ -42,8 +30,8 @@ ReactDOM.createRoot(document.createElement('div')).render(
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
 root.render(
-  <WagmiConfig config={wagmiConfig}>
-    <RainbowKitProvider chains={chains}>
+  <WagmiConfig config={config}>
+    <RainbowKitProvider>
       <Init />
     </RainbowKitProvider>
   </WagmiConfig>
