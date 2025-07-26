@@ -581,7 +581,7 @@ export function useRoom(
 
   return {
     isDirectMessageRoom,
-    isPrivate,
+    isPrivate, // isPrivate'ı buradan dışarı aktarıyoruz
     handleInlineMediaUpload,
     handleMessageChange,
     isMessageSending,

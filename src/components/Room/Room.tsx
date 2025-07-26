@@ -1,4 +1,4 @@
-import { useContext, useMemo } from 'react' // Değişiklik 1: useMemo eklendi
+import { useContext, useMemo } from 'react'
 import { useWindowSize } from '@react-hook/window-size'
 import Zoom from '@mui/material/Zoom'
 import Box from '@mui/material/Box'
@@ -25,6 +25,7 @@ import { RoomFileUploadControls } from './RoomFileUploadControls'
 import { RoomVideoDisplay } from './RoomVideoDisplay'
 import { RoomShowMessagesControls } from './RoomShowMessagesControls'
 import { TypingStatusBar } from './TypingStatusBar'
+import { AdmissionController } from './AdmissionController' // YENİ IMPORT
 
 export interface RoomProps {
   appId?: string
@@ -52,12 +53,10 @@ export function Room({
   const { showActiveTypingStatus, publicKey, isEnhancedConnectivityEnabled } =
     settingsContext.getUserSettings()
 
-  // Fetch rtcConfig from server
   const { rtcConfig, isLoading: isConfigLoading } = useRtcConfig(
     isEnhancedConnectivityEnabled
   )
 
-  // Değişiklik 2: useRoom'a gönderilen config nesnesi useMemo ile sarmalandı
   const roomJoinConfig = useMemo(
     () => ({
       appId,
@@ -71,6 +70,7 @@ export function Room({
 
   const {
     isDirectMessageRoom,
+    isPrivate, // YENİ: isPrivate değişkenini al
     handleInlineMediaUpload,
     handleMessageChange,
     isMessageSending,
@@ -80,7 +80,7 @@ export function Room({
     sendMessage,
     showVideoDisplay,
   } = useRoom(
-    roomJoinConfig, // Değişiklik 3: Sabitlenmiş config nesnesi kullanıldı
+    roomJoinConfig,
     {
       roomId,
       userId,
@@ -106,11 +106,13 @@ export function Room({
     return <WholePageLoading />
   }
 
-  // NOTE: If rtcConfig fails to load, the useRtcConfig hook provides a
-  // fallback so the room will continue to work with default settings
-
   return (
     <RoomContext.Provider value={roomContextValue}>
+      {/* YENİ: SADECE ÖZEL ODALARDA AdmissionController'ı RENDER ET */}
+      {isPrivate && !isDirectMessageRoom && (
+        <AdmissionController roomId={roomId} secret={password!} />
+      )}
+
       <Box
         className="Room"
         sx={{

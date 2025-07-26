@@ -1,7 +1,6 @@
 import './polyfills'
 import ReactDOM from 'react-dom/client'
 import 'typeface-roboto'
-
 import 'modern-normalize/modern-normalize.css'
 import './index.css'
 
@@ -11,24 +10,43 @@ import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import Init from './Init'
 import reportWebVitals from './reportWebVitals'
 
-// NOTE: This is a workaround for MUI components attempting to access theme code
-// before it has loaded.
-// See: https://stackoverflow.com/a/76017295/470685
-;<ThemeProvider theme={createTheme()} />
+import '@rainbow-me/rainbowkit/styles.css';
+import { getDefaultWallets, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { configureChains, createConfig, WagmiConfig } from 'wagmi';
+import { polygon } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
 
-// NOTE: This is a workaround for SyntaxHighlighter not working reliably in the
-// EmbedCodeDialog component. It seems to have the effect of warming some
-// sort of internal cache that avoids a race condition within
-// SyntaxHighlighter.
-// See: https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/513
+const { chains, publicClient } = configureChains(
+  [polygon],
+  [publicProvider()]
+);
+
+const { connectors } = getDefaultWallets({
+  appName: 'GhostBat',
+  projectId: 'YOUR_PROJECT_ID',
+  chains
+});
+
+const wagmiConfig = createConfig({
+  autoConnect: true,
+  connectors,
+  publicClient
+});
+
+
+;<ThemeProvider theme={createTheme()} />
 ReactDOM.createRoot(document.createElement('div')).render(
   <SyntaxHighlighter language="" children={''} />
 )
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
-root.render(<Init />)
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+root.render(
+  <WagmiConfig config={wagmiConfig}>
+    <RainbowKitProvider chains={chains}>
+      <Init />
+    </RainbowKitProvider>
+  </WagmiConfig>
+)
+
 reportWebVitals()

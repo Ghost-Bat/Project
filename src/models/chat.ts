@@ -89,6 +89,27 @@ export interface FileOfferMetadata extends Record<string, any> {
   isAllInlineMedia: boolean
 }
 
+export interface AdmissionRequestPayload {
+  requestingUserId: string;
+  requestingUsername: string;
+}
+
+export type AdmissionVote = 'admit' | 'deny';
+
+export interface AdmissionVotePayload {
+  voterId: string;
+  vote: AdmissionVote;
+  requestingUserId: string;
+}
+
+
+export interface PendingAdmission {
+  requestingUserId: string;
+  requestingUsername: string;
+  votes: Map<string, AdmissionVote>;
+}
+
+
 export interface TypingStatus extends Record<string, any> {
   isTyping: boolean
 }
